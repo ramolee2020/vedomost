@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Store, idbPersist } from './store';
 import { syncOnce } from './sync';
 import { makeClient, toSyncClient } from './supabase';
@@ -22,16 +22,19 @@ const getAuth = () => { try { return JSON.parse(localStorage.getItem('auth') || 
 export default function App() {
   const [auth, setAuth] = useState<{ code: string; coach: string } | null>(getAuth);
   const [ready, setReady] = useState(false);
-  const [online, setOnline] = useState<'ok' | 'wait'>('wait');
+  const [online, setOnline] = useState<'ok' | 'wait' | 'init'>('init');
+  useSyncExternalStore(f => store.subscribe(f), () => store.version); // баннер синхронизации зависит от очереди
   const [stack, setStack] = useState<Screen[]>([{ name: 'groups' }]);
   useEffect(() => { store.load().then(() => setReady(true)); }, []);
   useEffect(() => {
     if (!auth || !ready) return;
     const client = toSyncClient(makeClient(auth.code));
-    let busy = false;
+    let busy = false, again = false;
     const run = async () => {
-      if (busy) return; busy = true;
-      try { await syncOnce(store, client); setOnline('ok'); } catch { setOnline('wait'); } finally { busy = false; }
+      if (busy) { again = true; return; }
+      busy = true;
+      try { await syncOnce(store, client); setOnline('ok'); } catch (e) { console.warn('sync failed', e); setOnline('wait'); }
+      finally { busy = false; if (again) { again = false; setTimeout(run, 500); } }
     };
     run();
     const unsub = store.subscribe(() => { if (store.pending.length) setTimeout(run, 800); });
@@ -48,7 +51,7 @@ export default function App() {
   const props = { nav, back, coach: auth.coach };
   return (
     <StoreCtx.Provider value={store}>
-      <div className={'sync ' + online}>{online === 'ok' && !store.pending.length ? 'Синхронизировано' : 'Ждёт сети — данные сохранены в телефоне'}</div>
+      <div className={'sync ' + online}>{online === 'init' ? 'Синхронизация…' : online === 'ok' && !store.pending.length ? 'Синхронизировано' : 'Ждёт сети — данные сохранены в телефоне'}</div>
       {screen.name === 'groups' && <Groups {...props} />}
       {screen.name === 'group' && <GroupView {...props} groupId={screen.groupId} />}
       {screen.name === 'add' && <AddAthletes {...props} groupId={screen.groupId} />}

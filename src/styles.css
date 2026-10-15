@@ -16,3 +16,4 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--mute); }
 .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; } .steps button { font-size: 20px; min-height: 56px; }
 table { border-collapse: collapse; font-size: 14px; } th, td { border: 1px solid var(--line); padding: 6px; } .scroll { overflow-x: auto; }
 td input { border: 0; padding: 6px; width: 64px; text-align: center; }
+td:first-child { min-width: 130px; }
